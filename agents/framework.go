@@ -3,6 +3,7 @@ package agents
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -126,6 +127,12 @@ func RunAgents(ctx context.Context, agents []Agent, target models.Target, onUpda
 	<-done
 
 	return allFindings, nil
+}
+
+// sanitizeForPrompt removes characters that could be used for prompt injection.
+func sanitizeForPrompt(s string) string {
+	re := regexp.MustCompile(`[^\w\s./:-]`)
+	return re.ReplaceAllString(s, "")
 }
 
 var findingCounter uint64

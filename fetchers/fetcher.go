@@ -62,7 +62,7 @@ func (f *BaseFetcher) Get(ctx context.Context, url string, headers map[string]st
 			continue
 		}
 
-		body, err := io.ReadAll(resp.Body)
+		body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20)) // 10MB cap
 		resp.Body.Close()
 		if err != nil {
 			lastErr = err
@@ -114,7 +114,7 @@ func (f *BaseFetcher) PostJSON(ctx context.Context, url string, reqBody interfac
 	}
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20)) // 10MB cap
 	if err != nil {
 		return fmt.Errorf("read response: %w", err)
 	}

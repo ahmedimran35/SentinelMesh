@@ -32,12 +32,15 @@ func (a *ThreatIntelAgent) Investigate(ctx context.Context, target models.Target
 
 Be concise and technical. Output in plain text, not JSON.`
 
+	safeTarget := sanitizeForPrompt(target.Value)
+	safeType := sanitizeForPrompt(target.Type)
+
 	userPrompt := fmt.Sprintf(`Analyze this target for threat intelligence:
 Target: %s
 Type: %s
 
 What are the likely threat vectors? What MITRE ATT&CK techniques should we look for?
-Provide a brief threat assessment.`, target.Value, target.Type)
+Provide a brief threat assessment.`, safeTarget, safeType)
 
 	response, err := a.llm.ChatCompletion(systemPrompt, userPrompt)
 	if err != nil {

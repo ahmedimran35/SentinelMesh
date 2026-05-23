@@ -92,18 +92,14 @@ func (s *Scheduler) scheduleTarget(t models.Target) {
 		}
 	}
 
+	// All timer operations under single lock to prevent race
 	s.mu.Lock()
-	// Cancel existing timer if any
 	if old, ok := s.timers[t.ID]; ok {
 		old.Stop()
 	}
-	s.mu.Unlock()
-
 	timer := time.AfterFunc(delay, func() {
 		s.runScan(t)
 	})
-
-	s.mu.Lock()
 	s.timers[t.ID] = timer
 	s.mu.Unlock()
 }

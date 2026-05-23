@@ -10,12 +10,14 @@ import (
 )
 
 // AuthMiddleware checks X-API-Key header.
-// If API_KEY env is not set, all requests pass (dev mode).
+// If API_KEY env is not set, all requests are denied (fail closed).
 func AuthMiddleware(next http.Handler) http.Handler {
 	apiKey := os.Getenv("API_KEY")
 	if apiKey == "" {
-		log.Println("WARNING: API_KEY not set — all endpoints are unauthenticated (dev mode)")
-		return next
+		log.Println("FATAL: API_KEY not set — refusing to serve unauthenticated. Set API_KEY env var.")
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, `{"error":"server misconfigured: API_KEY not set"}`, http.StatusInternalServerError)
+		})
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -25,9 +27,6 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		}
 
 		key := r.Header.Get("X-API-Key")
-		if key == "" {
-			key = r.URL.Query().Get("api_key")
-		}
 
 		if key != apiKey {
 			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
@@ -77,27 +76,66 @@ func originAllowed(origin string, allowed []string) bool {
 }
 
 // RateLimitMiddleware limits requests per IP.
+// Uses RemoteAddr only — ignores X-Forwarded-For to prevent spoofing.
 type RateLimitMiddleware struct {
 	mu       sync.Mutex
 	requests map[string][]time.Time
 	limit    int
 	window   time.Duration
+	stopOnce sync.Once
+	stopCh   chan struct{}
 }
 
 func NewRateLimitMiddleware(requestsPerMinute int) *RateLimitMiddleware {
-	return &RateLimitMiddleware{
+	rl := &RateLimitMiddleware{
 		requests: make(map[string][]time.Time),
 		limit:    requestsPerMinute,
 		window:   time.Minute,
+		stopCh:   make(chan struct{}),
 	}
+	// Background cleanup every 5 minutes to prevent memory leak
+	go func() {
+		ticker := time.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-rl.stopCh:
+				return
+			case <-ticker.C:
+				rl.cleanup()
+			}
+		}
+	}()
+	return rl
+}
+
+func (rl *RateLimitMiddleware) cleanup() {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+	cutoff := time.Now().Add(-rl.window)
+	for ip, times := range rl.requests {
+		var recent []time.Time
+		for _, t := range times {
+			if t.After(cutoff) {
+				recent = append(recent, t)
+			}
+		}
+		if len(recent) == 0 {
+			delete(rl.requests, ip)
+		} else {
+			rl.requests[ip] = recent
+		}
+	}
+}
+
+func (rl *RateLimitMiddleware) Stop() {
+	rl.stopOnce.Do(func() { close(rl.stopCh) })
 }
 
 func (rl *RateLimitMiddleware) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Use RemoteAddr only — do not trust X-Forwarded-For
 		ip := r.RemoteAddr
-		if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
-			ip = strings.Split(fwd, ",")[0]
-		}
 
 		rl.mu.Lock()
 		now := time.Now()

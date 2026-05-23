@@ -257,8 +257,10 @@ func (s *Store) SearchFindings(query, severity, agent string, limit int) ([]mode
 	      FROM findings WHERE 1=1`
 	args := []interface{}{}
 	if query != "" {
-		q += ` AND (title LIKE ? OR details LIKE ?)`
-		args = append(args, "%"+query+"%", "%"+query+"%")
+		// Escape LIKE wildcards to prevent injection
+		escaped := strings.ReplaceAll(strings.ReplaceAll(query, "%", "\\%"), "_", "\\_")
+		q += ` AND (title LIKE ? ESCAPE '\' OR details LIKE ? ESCAPE '\')`
+		args = append(args, "%"+escaped+"%", "%"+escaped+"%")
 	}
 	if severity != "" {
 		q += ` AND severity=?`

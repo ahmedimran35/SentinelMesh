@@ -42,7 +42,7 @@ Your report must include:
 Be precise, technical, and actionable. Write like a human analyst, not an AI.`
 
 	var findingsText strings.Builder
-	findingsText.WriteString(fmt.Sprintf("TARGET: %s (%s)\n\n", target.Value, target.Type))
+	findingsText.WriteString(fmt.Sprintf("TARGET: %s (%s)\n\n", sanitizeForPrompt(target.Value), sanitizeForPrompt(target.Type)))
 
 	for agent, agentFindings := range findingsByAgent {
 		findingsText.WriteString(fmt.Sprintf("=== %s Agent Findings (%d) ===\n", strings.ToUpper(agent), len(agentFindings)))
@@ -169,25 +169,25 @@ func (a *CommanderAgent) generateBasicReport(target models.Target, findings []mo
 }
 
 func determineRiskRating(findings []models.Finding) models.RiskRating {
+	// Single pass — track highest severity seen
+	rating := models.RiskInfo
 	for _, f := range findings {
-		if f.Severity == models.RiskCritical {
-			return models.RiskCritical
+		switch f.Severity {
+		case models.RiskCritical:
+			return models.RiskCritical // can't get higher, bail early
+		case models.RiskHigh:
+			rating = models.RiskHigh
+		case models.RiskMedium:
+			if rating != models.RiskHigh {
+				rating = models.RiskMedium
+			}
+		case models.RiskLow:
+			if rating == models.RiskInfo {
+				rating = models.RiskLow
+			}
 		}
 	}
-	for _, f := range findings {
-		if f.Severity == models.RiskHigh {
-			return models.RiskHigh
-		}
-	}
-	for _, f := range findings {
-		if f.Severity == models.RiskMedium {
-			return models.RiskMedium
-		}
-	}
-	if len(findings) > 0 {
-		return models.RiskLow
-	}
-	return models.RiskInfo
+	return rating
 }
 
 func extractExecutiveSummary(report string) string {

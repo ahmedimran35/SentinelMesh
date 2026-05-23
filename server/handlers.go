@@ -2,11 +2,15 @@ package server
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -19,6 +23,51 @@ import (
 	"sentinelmesh/models"
 	"sentinelmesh/store"
 )
+
+// randomHexID generates a cryptographically random 16-byte hex ID.
+func randomHexID() string {
+	b := make([]byte, 16)
+	rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+// validateTarget checks that target is a valid domain, IP, or CIDR range.
+func validateTarget(target, targetType string) error {
+	switch targetType {
+	case "ip":
+		if net.ParseIP(target) == nil {
+			return fmt.Errorf("invalid IP address: %s", target)
+		}
+	case "ip_range":
+		_, _, err := net.ParseCIDR(target)
+		if err != nil {
+			return fmt.Errorf("invalid CIDR range: %s", target)
+		}
+	case "domain":
+		// Allow only alphanumeric, hyphens, dots, and wildcards
+		domainRe := regexp.MustCompile(`^[a-zA-Z0-9.*-]+$`)
+		if !domainRe.MatchString(target) || len(target) > 253 {
+			return fmt.Errorf("invalid domain: %s", target)
+		}
+	default:
+		return fmt.Errorf("unknown target type: %s", targetType)
+	}
+	return nil
+}
+
+// sanitizeForPrompt removes characters that could be used for prompt injection.
+func sanitizeForPrompt(s string) string {
+	re := regexp.MustCompile(`[^\w\s./:-]`)
+	return re.ReplaceAllString(s, "")
+}
+
+// csvEscape sanitizes a value for CSV to prevent formula injection.
+func csvEscape(s string) string {
+	if len(s) > 0 && (s[0] == '=' || s[0] == '+' || s[0] == '-' || s[0] == '@') {
+		s = "'" + s
+	}
+	return s
+}
 
 // extractID extracts a resource ID from a path like /api/{resource}/{id}
 func extractID(path, prefix string) string {
@@ -99,9 +148,13 @@ func (h *Handler) StartInvestigation(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, http.StatusBadRequest, "type must be domain, ip, or ip_range")
 		return
 	}
+	if err := validateTarget(req.Target, req.Type); err != nil {
+		h.writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid target: %v", err))
+		return
+	}
 
 	inv := &models.Investigation{
-		ID:         fmt.Sprintf("inv-%d", time.Now().UnixNano()),
+		ID:         "inv-" + randomHexID(),
 		Target:     req.Target,
 		TargetType: req.Type,
 		Status:     models.StatusRunning,
@@ -150,6 +203,11 @@ func (h *Handler) runInvestigation(inv *models.Investigation) {
 	if inv.TargetType == "ip_range" {
 		ips, cidrErr := fetchers.ExpandCIDR(inv.Target)
 		if cidrErr == nil && len(ips) > 0 {
+			const maxIPs = 256
+			if len(ips) > maxIPs {
+				h.sse.BroadcastCommander(fmt.Sprintf("CIDR expanded to %d hosts — capping at %d", len(ips), maxIPs), "analysis")
+				ips = ips[:maxIPs]
+			}
 			h.sse.BroadcastCommander(fmt.Sprintf("CIDR expanded: %d hosts to scan", len(ips)), "analysis")
 			var mu sync.Mutex
 			var wg sync.WaitGroup
@@ -228,17 +286,27 @@ func (h *Handler) runInvestigation(inv *models.Investigation) {
 	h.sse.BroadcastCommander("Correlating findings across agents...", "correlation")
 	corr := correlation.NewCorrelator()
 	correlations := corr.Analyze(findings)
+
+	// Build finding ID set for O(1) lookup instead of O(n) scan per correlation
+	findingIDs := make(map[string]bool, len(findings))
+	for _, f := range findings {
+		findingIDs[f.ID] = true
+	}
+
 	for _, c := range correlations {
+		// Validate that referenced finding IDs exist (O(1) per ID)
+		valid := true
 		for _, fid := range c.FindingIDs {
-			for _, f := range findings {
-				if f.ID == fid {
-					h.sse.BroadcastAlert(c.Type, string(c.Severity), c.Title, inv.Target)
-					break
-				}
+			if !findingIDs[fid] {
+				valid = false
+				break
 			}
 		}
+		if valid {
+			h.sse.BroadcastAlert(c.Type, string(c.Severity), c.Title, inv.Target)
+		}
 		h.store.CreateAlert(&models.Alert{
-			ID:              fmt.Sprintf("alert-%d", time.Now().UnixNano()),
+			ID:              "alert-" + randomHexID(),
 			Target:          inv.Target,
 			AlertType:       c.Type,
 			Severity:        c.Severity,
@@ -669,9 +737,7 @@ func (h *Handler) SSEHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
-	if origin := r.Header.Get("Origin"); origin != "" {
-		w.Header().Set("Access-Control-Allow-Origin", origin)
-	}
+	// CORS for SSE is handled by CORSMiddleware — do not reflect Origin here
 
 	ch := h.sse.Subscribe()
 	defer h.sse.Unsubscribe(ch)
@@ -719,7 +785,7 @@ func (h *Handler) AddMonitor(w http.ResponseWriter, r *http.Request) {
 	}
 
 	t := models.Target{
-		ID:             fmt.Sprintf("tgt-%d", time.Now().UnixNano()),
+		ID:             "tgt-" + randomHexID(),
 		Value:          req.Target,
 		Type:           req.Type,
 		MonitorEnabled: true,
@@ -796,8 +862,8 @@ func (h *Handler) ExportReport(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "target,agent,type,severity,title,details,timestamp")
 		for _, f := range findings {
 			fmt.Fprintf(w, "%q,%q,%q,%q,%q,%q,%s\n",
-				inv.Target, f.Agent, f.Type, string(f.Severity),
-				f.Title, f.Details, f.Timestamp.Format(time.RFC3339))
+				csvEscape(inv.Target), csvEscape(f.Agent), csvEscape(f.Type), string(f.Severity),
+				csvEscape(f.Title), csvEscape(f.Details), f.Timestamp.Format(time.RFC3339))
 		}
 	case "stix":
 		w.Header().Set("Content-Type", "application/json")

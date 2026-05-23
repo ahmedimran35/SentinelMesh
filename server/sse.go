@@ -45,10 +45,16 @@ func (m *SSEManager) Broadcast(eventType string, data interface{}) {
 
 	event := fmt.Sprintf("event: %s\ndata: %s\n\n", eventType, string(dataJSON))
 
+	// Snapshot channels under read lock, then write outside lock
+	// This prevents deadlock when Unsubscribe needs write lock
 	m.mu.RLock()
-	defer m.mu.RUnlock()
-
+	channels := make([]chan string, 0, len(m.clients))
 	for ch := range m.clients {
+		channels = append(channels, ch)
+	}
+	m.mu.RUnlock()
+
+	for _, ch := range channels {
 		select {
 		case ch <- event:
 		default:
