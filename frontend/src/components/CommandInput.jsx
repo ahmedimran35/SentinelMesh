@@ -42,7 +42,7 @@ export default function CommandInput({ onInvestigate }) {
 
   return (
     <form className="terminal-input" onSubmit={handleSubmit}>
-      <span className="terminal-prompt">❯</span>
+      <span className="terminal-prompt">{'>'}_</span>
       <input
         ref={inputRef}
         type="text"
@@ -50,57 +50,85 @@ export default function CommandInput({ onInvestigate }) {
         value={input}
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder="investigate target.com, 192.168.1.1, or 10.0.0.0/24"
+        placeholder="Enter target: domain, IP, or CIDR range..."
         spellCheck="false"
         autoComplete="off"
       />
       {input && (
         <span className="terminal-type">{detectType(input)}</span>
       )}
+      <button type="submit" className="terminal-submit" disabled={!input.trim()}>
+        SCAN
+      </button>
       <style>{`
         .terminal-input {
           display: flex;
           align-items: center;
-          gap: 8px;
+          gap: 10px;
           background: var(--bg-surface);
           border: 1px solid var(--border);
-          border-radius: 6px;
+          border-radius: 4px;
           padding: 10px 14px;
           transition: border-color 0.3s, box-shadow 0.3s;
+          position: relative;
         }
         .terminal-input:focus-within {
-          border-color: var(--cyan-dim);
-          box-shadow: 0 0 12px var(--cyan-dim);
+          border-color: var(--cyan);
+          box-shadow: 0 0 16px rgba(0, 229, 255, 0.08), inset 0 0 30px rgba(0, 229, 255, 0.02);
         }
         .terminal-prompt {
-          font-family: var(--font-mono);
-          font-size: 14px;
+          font-family: var(--font-display);
+          font-size: 13px;
           color: var(--cyan);
           font-weight: 700;
+          letter-spacing: 1px;
+          opacity: 0.8;
         }
         .terminal-field {
           flex: 1;
           background: transparent;
           border: none;
           outline: none;
-          font-family: var(--font-code);
+          font-family: var(--font-mono);
           font-size: 13px;
           color: var(--text-primary);
           caret-color: var(--cyan);
+          letter-spacing: 0.5px;
         }
         .terminal-field::placeholder {
           color: var(--text-dim);
-          font-size: 12px;
+          font-size: 11px;
+          letter-spacing: 0.3px;
         }
         .terminal-type {
-          font-family: var(--font-mono);
+          font-family: var(--font-display);
           font-size: 8px;
-          color: var(--text-dim);
-          background: var(--bg-elevated);
-          padding: 2px 6px;
+          color: var(--cyan);
+          background: var(--cyan-dim);
+          padding: 2px 8px;
           border-radius: 2px;
-          letter-spacing: 1px;
+          letter-spacing: 2px;
           font-weight: 600;
+        }
+        .terminal-submit {
+          font-family: var(--font-display);
+          font-size: 9px;
+          letter-spacing: 2px;
+          color: var(--cyan);
+          background: var(--cyan-dim);
+          border: 1px solid rgba(0, 229, 255, 0.2);
+          border-radius: 3px;
+          padding: 4px 12px;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        .terminal-submit:hover:not(:disabled) {
+          background: rgba(0, 229, 255, 0.2);
+          border-color: var(--cyan);
+        }
+        .terminal-submit:disabled {
+          opacity: 0.3;
+          cursor: not-allowed;
         }
       `}</style>
     </form>

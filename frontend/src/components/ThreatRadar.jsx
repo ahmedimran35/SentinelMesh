@@ -8,7 +8,7 @@ export default function ThreatRadar({ blips = [] }) {
     let a = 0
     let lastTime = 0
     const anim = (time) => {
-      if (time - lastTime >= 33) { // ~30fps instead of 60fps
+      if (time - lastTime >= 33) {
         a = (a + 1.2) % 360
         setSweep(a)
         lastTime = time
@@ -39,42 +39,60 @@ export default function ThreatRadar({ blips = [] }) {
       <svg width="100%" height="100%" viewBox={`0 0 ${size} ${size}`}>
         <defs>
           <radialGradient id="sweep-grad" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="var(--cyan)" stopOpacity="0.12" />
+            <stop offset="0%" stopColor="var(--cyan)" stopOpacity="0.15" />
             <stop offset="100%" stopColor="var(--cyan)" stopOpacity="0" />
           </radialGradient>
+          <radialGradient id="center-glow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="var(--cyan)" stopOpacity="0.08" />
+            <stop offset="100%" stopColor="var(--cyan)" stopOpacity="0" />
+          </radialGradient>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="2" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
         </defs>
 
+        {/* Outer ambient glow */}
+        <circle cx={cx} cy={cy} r={mr + 8} fill="url(#center-glow)" />
+
+        {/* Range rings */}
         {[0.2, 0.4, 0.6, 0.8, 1].map((r, i) => (
           <circle key={i} cx={cx} cy={cy} r={mr * r} fill="none"
-            stroke="var(--border)" strokeWidth="0.8" opacity={0.6 - i * 0.1} />
+            stroke="var(--cyan)" strokeWidth="0.5" opacity={0.08 + i * 0.02} />
         ))}
 
+        {/* Cross lines */}
         {[0, 45, 90, 135].map((a, i) => (
           <line key={i}
-            x1={cx + mr * 0.2 * Math.cos((a * Math.PI) / 180)}
-            y1={cy + mr * 0.2 * Math.sin((a * Math.PI) / 180)}
+            x1={cx + mr * 0.15 * Math.cos((a * Math.PI) / 180)}
+            y1={cy + mr * 0.15 * Math.sin((a * Math.PI) / 180)}
             x2={cx + mr * Math.cos((a * Math.PI) / 180)}
             y2={cy + mr * Math.sin((a * Math.PI) / 180)}
-            stroke="var(--border)" strokeWidth="0.4" opacity="0.3" />
+            stroke="var(--cyan)" strokeWidth="0.3" opacity="0.1" />
         ))}
-
         <line x1={cx} y1={cy - mr} x2={cx} y2={cy + mr}
-          stroke="var(--border)" strokeWidth="0.4" opacity="0.2" />
+          stroke="var(--cyan)" strokeWidth="0.3" opacity="0.08" />
         <line x1={cx - mr} y1={cy} x2={cx + mr} y2={cy}
-          stroke="var(--border)" strokeWidth="0.4" opacity="0.2" />
+          stroke="var(--cyan)" strokeWidth="0.3" opacity="0.08" />
 
+        {/* Sweep line */}
         <line
           x1={cx} y1={cy}
           x2={cx + mr * Math.cos((sweep * Math.PI) / 180)}
           y2={cy + mr * Math.sin((sweep * Math.PI) / 180)}
-          stroke="var(--cyan)" strokeWidth="1.2" opacity="0.7"
+          stroke="var(--cyan)" strokeWidth="1" opacity="0.8" filter="url(#glow)"
         />
 
+        {/* Sweep trail */}
         <path
-          d={`M ${cx} ${cy} L ${cx + mr * Math.cos(((sweep - 25) * Math.PI) / 180)} ${cy + mr * Math.sin(((sweep - 25) * Math.PI) / 180)} A ${mr} ${mr} 0 0 1 ${cx + mr * Math.cos((sweep * Math.PI) / 180)} ${cy + mr * Math.sin((sweep * Math.PI) / 180)} Z`}
+          d={`M ${cx} ${cy} L ${cx + mr * Math.cos(((sweep - 30) * Math.PI) / 180)} ${cy + mr * Math.sin(((sweep - 30) * Math.PI) / 180)} A ${mr} ${mr} 0 0 1 ${cx + mr * Math.cos((sweep * Math.PI) / 180)} ${cy + mr * Math.sin((sweep * Math.PI) / 180)} Z`}
           fill="url(#sweep-grad)"
         />
 
+        {/* Blips */}
         {blips.slice(-25).map((b, i) => {
           const a = (b.angle * Math.PI) / 180
           const d = b.distance * mr
@@ -86,28 +104,36 @@ export default function ThreatRadar({ blips = [] }) {
             <g key={b.id}>
               <circle cx={x} cy={y} r={fresh ? 4 : 2.5}
                 fill={sevColor(b.severity)}
-                opacity={fresh ? 1 : 0.5}>
+                opacity={fresh ? 1 : 0.4}>
                 {fresh && <animate attributeName="r" values="2.5;5;2.5" dur="1.2s" repeatCount="indefinite" />}
               </circle>
               {fresh && (
                 <circle cx={x} cy={y} r="8" fill="none"
-                  stroke={sevColor(b.severity)} strokeWidth="0.8" opacity="0.3">
-                  <animate attributeName="r" values="4;12;4" dur="1.8s" repeatCount="indefinite" />
-                  <animate attributeName="opacity" values="0.3;0;0.3" dur="1.8s" repeatCount="indefinite" />
+                  stroke={sevColor(b.severity)} strokeWidth="0.6" opacity="0.2">
+                  <animate attributeName="r" values="4;14;4" dur="2s" repeatCount="indefinite" />
+                  <animate attributeName="opacity" values="0.3;0;0.3" dur="2s" repeatCount="indefinite" />
                 </circle>
               )}
             </g>
           )
         })}
 
-        <circle cx={cx} cy={cy} r="2.5" fill="var(--cyan)" opacity="0.9" />
+        {/* Center dot */}
+        <circle cx={cx} cy={cy} r="3" fill="var(--cyan)" opacity="0.9" filter="url(#glow)" />
+        <circle cx={cx} cy={cy} r="6" fill="none" stroke="var(--cyan)" strokeWidth="0.5" opacity="0.3">
+          <animate attributeName="r" values="4;8;4" dur="3s" repeatCount="indefinite" />
+        </circle>
 
-        <text x={cx} y={12} textAnchor="middle" fill="var(--text-dim)" fontSize="7" fontFamily="var(--font-mono)">CRITICAL</text>
-        <text x={cx} y={size - 4} textAnchor="middle" fill="var(--text-dim)" fontSize="7" fontFamily="var(--font-mono)">INFO</text>
+        {/* Zone labels */}
+        <text x={cx} y={14} textAnchor="middle" fill="var(--red)" fontSize="7"
+          fontFamily="var(--font-display)" opacity="0.5" letterSpacing="2">CRITICAL</text>
+        <text x={cx} y={size - 5} textAnchor="middle" fill="var(--text-dim)" fontSize="7"
+          fontFamily="var(--font-display)" opacity="0.4" letterSpacing="2">PERIPHERAL</text>
       </svg>
 
       <div className="radar-footer">
-        <span>{blips.length} signals</span>
+        <span className="radar-count">{blips.length}</span>
+        <span className="radar-label">SIGNALS</span>
       </div>
 
       <style>{`
@@ -122,10 +148,22 @@ export default function ThreatRadar({ blips = [] }) {
         }
         .radar-footer {
           position: absolute;
-          bottom: 6px;
-          right: 10px;
+          bottom: 8px;
+          right: 12px;
+          display: flex;
+          align-items: baseline;
+          gap: 4px;
+        }
+        .radar-count {
+          font-family: var(--font-display);
+          font-size: 14px;
+          font-weight: 700;
+          color: var(--cyan);
+        }
+        .radar-label {
           font-family: var(--font-mono);
-          font-size: 9px;
+          font-size: 8px;
+          letter-spacing: 2px;
           color: var(--text-dim);
         }
       `}</style>

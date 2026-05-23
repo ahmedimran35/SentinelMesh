@@ -190,8 +190,8 @@ export default function App() {
         </div>
 
         <div className="warroom-agents">
-          {activeAgentStates.map(agent => (
-            <AgentPanel key={agent.id} agent={agent} />
+          {activeAgentStates.map((agent, i) => (
+            <AgentPanel key={agent.id} agent={agent} index={i} />
           ))}
         </div>
 
@@ -338,7 +338,7 @@ export default function App() {
         .commander-output {
           background: var(--bg-surface);
           border: 1px solid var(--border);
-          border-radius: 8px;
+          border-radius: 4px;
           padding: 10px 14px;
           min-height: 48px;
           max-height: 72px;
@@ -349,7 +349,7 @@ export default function App() {
           align-items: center;
           gap: 8px;
           font-family: var(--font-mono);
-          font-size: 11px;
+          font-size: 10px;
           line-height: 1.5;
           animation: event-slide-in 0.3s ease;
         }
@@ -357,20 +357,20 @@ export default function App() {
         .cmd-label {
           color: var(--purple);
           font-weight: 700;
-          letter-spacing: 1px;
-          font-size: 10px;
+          letter-spacing: 2px;
+          font-size: 8px;
           flex-shrink: 0;
+          font-family: var(--font-display);
         }
         .cmd-text {
-          color: var(--text-primary);
-          font-style: italic;
+          color: var(--text-secondary);
         }
         .cmd-msg-idle .cmd-text {
           color: var(--text-dim);
         }
         .cmd-msg-idle .cmd-icon,
         .cmd-msg-idle .cmd-label {
-          opacity: 0.5;
+          opacity: 0.4;
         }
 
         @media (max-width: 1200px) {

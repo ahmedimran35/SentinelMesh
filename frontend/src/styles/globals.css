@@ -1,8 +1,8 @@
 :root {
   --bg-primary: #08080c;
-  --bg-surface: #0e0e16;
-  --bg-elevated: #141420;
-  --bg-hover: #1c1c2e;
+  --bg-surface: #0c0c14;
+  --bg-elevated: #111120;
+  --bg-hover: #1a1a30;
   --cyan: #00e5ff;
   --cyan-dim: rgba(0, 229, 255, 0.12);
   --cyan-glow: rgba(0, 229, 255, 0.25);
@@ -14,14 +14,15 @@
   --green-dim: rgba(0, 230, 118, 0.12);
   --purple: #d500f9;
   --purple-dim: rgba(213, 0, 249, 0.12);
-  --text-primary: #eceef2;
-  --text-secondary: #8888aa;
-  --text-dim: #3a3a4e;
-  --border: #18182a;
-  --border-hover: #2a2a44;
-  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
-  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-code: 'Fira Code', 'JetBrains Mono', monospace;
+  --text-primary: #e8eaf0;
+  --text-secondary: #7a7c98;
+  --text-dim: #3a3a52;
+  --border: #1a1a30;
+  --border-hover: #2a2a4a;
+  --font-display: 'Orbitron', sans-serif;
+  --font-mono: 'Share Tech Mono', 'JetBrains Mono', monospace;
+  --font-body: 'Exo 2', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-code: 'Share Tech Mono', 'Fira Code', monospace;
 }
 
 * {
@@ -50,16 +51,32 @@ body {
   width: 100%;
 }
 
+/* Scanline overlay — subtle CRT atmosphere */
+body::after {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.03) 2px,
+    rgba(0, 0, 0, 0.03) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 4px;
+  height: 4px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
   background: var(--text-dim);
-  border-radius: 3px;
+  border-radius: 2px;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-secondary);
@@ -104,6 +121,22 @@ body {
 @keyframes pulse-dot {
   0%, 100% { transform: scale(1); opacity: 1; }
   50% { transform: scale(1.8); opacity: 0.4; }
+}
+@keyframes stagger-in {
+  from { transform: translateY(8px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes flicker {
+  0%, 100% { opacity: 1; }
+  92% { opacity: 1; }
+  93% { opacity: 0.7; }
+  94% { opacity: 1; }
+  96% { opacity: 0.8; }
+  97% { opacity: 1; }
+}
+@keyframes typing-cursor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
 }
 
 .glow-cyan { color: var(--cyan); text-shadow: 0 0 8px var(--cyan-glow); }
